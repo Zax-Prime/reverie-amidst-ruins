@@ -4,7 +4,7 @@
  * case that will be the kitty terminal protocol.
  */
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use image::{RgbaImage, imageops};
 
 use crate::camera::Camera;
@@ -34,15 +34,39 @@ const COIN_FRAMES: [(usize, usize); 4] = [(32, 0), (48, 0), (64, 0), (48, 0)];
 const PLAYER: (usize, usize) = (80, 0);
 const GOAL: (usize, usize) = (96, 0);
 
+use std::sync::LazyLock;
+
 // images
-const BACKGROUND_STORM: &[u8] =
-    include_bytes!("../assets/backgrounds/storm.png");
-const BACKGROUND_SNOW: &[u8] = include_bytes!("../assets/backgrounds/snow.png");
-const BACKGROUND_NEBULA: &[u8] =
-    include_bytes!("../assets/backgrounds/nebula.png");
-const TITLE: &[u8] = include_bytes!("../assets/backgrounds/title.png");
-const END: &[u8] = include_bytes!("../assets/backgrounds/end.png");
-const TILESET: &[u8] = include_bytes!("../assets/tiles/tileset.png");
+static BACKGROUND_STORM: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory(include_bytes!("../assets/backgrounds/storm.png"))
+        .expect("could not decode storm.png")
+        .into_rgba8()
+});
+static BACKGROUND_SNOW: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory(include_bytes!("../assets/backgrounds/snow.png"))
+        .expect("could not decode snow.png")
+        .into_rgba8()
+});
+static BACKGROUND_NEBULA: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory(include_bytes!("../assets/backgrounds/nebula.png"))
+        .expect("could not decode nebula.png")
+        .into_rgba8()
+});
+static TITLE: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory(include_bytes!("../assets/backgrounds/title.png"))
+        .expect("could not decode title.png")
+        .into_rgba8()
+});
+static END: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory(include_bytes!("../assets/backgrounds/end.png"))
+        .expect("could not decode end.png")
+        .into_rgba8()
+});
+static TILESET: LazyLock<RgbaImage> = LazyLock::new(|| {
+    image::load_from_memory(include_bytes!("../assets/tiles/tileset.png"))
+        .expect("could not decode tileset.png")
+        .into_rgba8()
+});
 
 // ok, i don't know how i feel about this currently, but this is the exact
 // colors used in the tileset.  we find those colors and treat those as indices
@@ -57,21 +81,13 @@ const SOURCE_PALETTE: Palette = [
 
 /// Render "title" screen
 pub fn title(frame: &mut RgbaImage) -> Result<()> {
-    overlay_image(frame, TITLE)
+    imageops::overlay(frame, &*TITLE, 0, 0);
+    Ok(())
 }
 
 /// Render "end" screen
 pub fn end(frame: &mut RgbaImage) -> Result<()> {
-    overlay_image(frame, END)
-}
-
-fn overlay_image(frame: &mut RgbaImage, bytes: &[u8]) -> Result<()> {
-    let img = image::load_from_memory(bytes)
-        .context("could not decode image")?
-        .into_rgba8();
-
-    imageops::overlay(frame, &img, 0, 0);
-
+    imageops::overlay(frame, &*END, 0, 0);
     Ok(())
 }
 
@@ -120,17 +136,12 @@ pub fn level(
     height: u32,
 ) -> Result<RgbaImage> {
     // load the background and get it ready to parallax
-    let background_data = match level.background.as_str() {
-        "snow" => BACKGROUND_SNOW,
-        "nebula" => BACKGROUND_NEBULA,
-        "storm" => BACKGROUND_STORM,
+    let background: &RgbaImage = match level.background.as_str() {
+        "snow" => &BACKGROUND_SNOW,
+        "nebula" => &BACKGROUND_NEBULA,
+        "storm" => &BACKGROUND_STORM,
         name => bail!("unknown background: {name}"),
     };
-    let background = image::load_from_memory(background_data)
-        .with_context(|| {
-            format!("could not decode background: {}", level.background)
-        })?
-        .into_rgba8();
     let background_width = background.width();
     let background_height = background.height();
 
@@ -150,9 +161,7 @@ pub fn level(
         )
     });
 
-    let tileset = image::load_from_memory(TILESET)
-        .context("could not decode tileset.png")?
-        .into_rgba8();
+    let tileset = &*TILESET;
 
     // loop all the blocks
     for (y, row) in level.blocks.iter().enumerate() {
