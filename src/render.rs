@@ -163,11 +163,21 @@ pub fn level(
 
     let tileset = &*TILESET;
 
-    // loop all the blocks
-    for (y, row) in level.blocks.iter().enumerate() {
-        for (x, &solid) in row.iter().enumerate() {
+    // loop only through the blocks visible in the viewport
+    let tile_size_f32 = TILE_SIZE as f32;
+    let min_x = ((camera.x - tile_size_f32 - SHADOW_OFFSET.0.max(0) as f32) / tile_size_f32)
+        .floor()
+        .max(0.0) as usize;
+    let max_x = (((camera.x + width as f32) / tile_size_f32).ceil() as usize).min(level.width);
+    let min_y = ((camera.y - tile_size_f32 - SHADOW_OFFSET.1.max(0) as f32) / tile_size_f32)
+        .floor()
+        .max(0.0) as usize;
+    let max_y = (((camera.y + height as f32) / tile_size_f32).ceil() as usize).min(level.height);
+
+    for y in min_y..max_y {
+        for x in min_x..max_x {
             // don't render air
-            if !solid {
+            if !level.blocks[y][x] {
                 continue;
             }
 
@@ -183,7 +193,7 @@ pub fn level(
             // draw the sprite onte the frame
             sprite(
                 &mut frame,
-                &tileset,
+                tileset,
                 block,
                 camera.world_to_screen(
                     (x * TILE_SIZE) as f32,
@@ -201,7 +211,7 @@ pub fn level(
     for &(x, y) in coins {
         sprite(
             &mut frame,
-            &tileset,
+            tileset,
             coin,
             camera.world_to_screen(
                 (x * TILE_SIZE) as f32,
@@ -215,7 +225,7 @@ pub fn level(
     // draw goal
     sprite(
         &mut frame,
-        &tileset,
+        tileset,
         GOAL,
         camera.world_to_screen(
             (level.goal.0 * TILE_SIZE) as f32,
@@ -229,7 +239,7 @@ pub fn level(
     if let Some(player) = player {
         sprite_sized(
             &mut frame,
-            &tileset,
+            tileset,
             PLAYER,
             camera.world_to_screen(player.x, player.y),
             &SOURCE_PALETTE,
@@ -272,6 +282,17 @@ fn sprite_sized(
     flip_x: bool,
     size: (u32, u32),
 ) {
+    let frame_w = frame.width() as i32;
+    let frame_h = frame.height() as i32;
+    let max_w = size.0 as i32 + SHADOW_OFFSET.0.max(0);
+    let max_h = size.1 as i32 + SHADOW_OFFSET.1.max(0);
+    if destination.0 + max_w <= 0
+        || destination.0 >= frame_w
+        || destination.1 + max_h <= 0
+        || destination.1 >= frame_h
+    {
+        return;
+    }
     // get the tile from the tileset
     let mut tile = imageops::crop_imm(
         tileset,
